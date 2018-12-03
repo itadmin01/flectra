@@ -39,5 +39,5 @@
     'installable': True,
     'price': 0.00,
     'currency': 'USD',
-    'license': 'AGPL-3”',	
+    'license': 'AGPL-3',	
 }
