@@ -10,8 +10,10 @@ class ResCompany(models.Model):
 
     rfc = fields.Char(string=_('RFC'))
     proveedor_timbrado= fields.Selection(
-        selection=[('gecoerp', _('GecoERP')),
-                   ('multifactura', _('Multifacturas')),],
+        selection=[('multifactura', _('Servidor 1')),
+                   ('gecoerp', _('Servidor 2')),
+                   ('multifactura2', _('Servidor 3')),
+                   ('multifactura3', _('Servidor 4')),],
         string=_('Proveedor de timbrado'), 
     )
     api_key = fields.Char(string=_('API Key'))
@@ -108,4 +110,4 @@ class ResCompany(models.Model):
     @api.multi
     def button_dummy(self):
         self.get_saldo()
-        return True 
+        return True

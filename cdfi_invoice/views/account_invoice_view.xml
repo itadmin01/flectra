@@ -49,8 +49,33 @@
                     <button name="action_cfdi_generate" type="object" string="Generar CFDI" 
                             attrs="{'invisible':['|',('factura_cfdi','=',True), ('state','not in',('open', 'paid'))]}"
                             class="oe_highlight" groups="base.group_user"/>
-                    <button name="action_cfdi_cancel" type="object" string="Cancelar CFDI" attrs="{'invisible':['|',('factura_cfdi','=',False), ('estado_factura','in',('solicitud_cancelar', 'factura_cancelada'))]}" class="oe_highlight" groups="base.group_user"/>
+                    <button name="action_cfdi_cancel"
+                            type="object" 
+                            string="Cancelar CFDI" 
+                            attrs="{'invisible':['|',('factura_cfdi','=',False), ('estado_factura','in',('solicitud_cancelar', 'factura_cancelada', 'solicitud_rechazada'))]}" 
+                            class="oe_highlight" 
+                            groups="base.group_user"
+                            confirm="¿Esta seguro que quiere cancelar la factura?"/>
+                    <button name="action_cfdi_rechazada"
+                            type="object" 
+                            string="Cambiar estado CFDI a factura correcta" 
+                            attrs="{'invisible':['|',('factura_cfdi','=',False), ('estado_factura','not in',('solicitud_rechazada'))]}" 
+                            class="oe_highlight" 
+                            groups="base.group_user"
+                            confirm="La factura va pasar a estado correcto y puede intentar cancelar nuevamente."/>
                 </button>
             </field>
         </record>
+        
+   <record id="action_generate_fcdi" model="ir.actions.server">
+    	<field name="name">Generar CFDI</field>
+        <field name="type">ir.actions.server</field>
+        <field name="state">code</field>
+        <field name="model_id" ref="account.model_account_invoice"/>
+        <field name="binding_model_id" ref="account.model_account_invoice"/>
+        <field name="code">
+				records.action_generate_cfdi()
+        </field>
+    </record>
+        
 </flectra>

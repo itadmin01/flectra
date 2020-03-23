@@ -6,12 +6,12 @@
 
 {
     'name': 'Ventas Factura Electronica Mexico CFDI',
-    'version': '11.2',
+    'version': '11.7',
     'description': ''' Factura Electronica módulo de ventas para Mexico (CFDI 3.3)
     ''',
     'category': 'Accounting',
     'author': 'IT Admin',
-    'website': '',
+    'website': 'www.itadmin.com.mx',
     'depends': [
         'base',
         'sale','account','account_invoicing', 'purchase'
@@ -39,5 +39,5 @@
     'installable': True,
     'price': 0.00,
     'currency': 'USD',
-    'license': 'AGPL-3',	
+    'license': 'AGPL-3',
 }

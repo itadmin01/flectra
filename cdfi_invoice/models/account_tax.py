@@ -15,4 +15,4 @@ class AccountTax(models.Model):
                                            ('Exento', 'Exento')], string='Tipo factor')
 
             
-     
+    

@@ -39,9 +39,7 @@
 				</div>
 			</div>
 			<t t-if="o.estado_factura == 'factura_cancelada'">
-			   <div style="position:absolute;opacity:0.25;z-index:1000;transform:rotate(300deg);-webkit-transform:rotate(300deg);width:150%;">
-                      <p style="font-size:140px;">CANCELADO</p>
-               </div>
+			   <h1 style="text-align:center;">FACTURA CANCELADA</h1>
 			</t>
         </div>
 
@@ -80,7 +78,7 @@
 					
 					<div class="col-xs-2">
 						<img t-if="o.company_id.logo" t-att-src="'data:image/png;base64,%s' % to_text(o.company_id.logo)"
-							style="max-height: 130px;" />
+							style="max-height: 130px;max-width:130px;" />
 					</div>
 						<div class="col-xs-5" >
 							<div >
@@ -93,7 +91,7 @@
 								<t t-if="not o.factura_cfdi">
 								<span t-field="o.company_id.partner_id.name" />
 								</t>
-								
+
 							</div>
 								<t t-if="o.factura_cfdi">
 								<div>
@@ -118,7 +116,7 @@
 							<div>
 							<t t-if="o.factura_cfdi">
 								<strong>Fecha: </strong>
-								<span t-esc="str(o.invoice_datetime).replace('T', ' ')"/> 
+								<span t-esc="str(o.invoice_datetime).replace('T', ' ')"/>
 							</t>
 							<t t-if="not o.factura_cfdi">
 								<strong>Fecha de venta: </strong>
@@ -179,7 +177,7 @@
 							<tr t-foreach="o.invoice_line_ids" t-as="l" style="page-break-inside: avoid">
 							<t t-if="l.quantity > 0">
 								<t t-set="price" t-value="l.price_unit * (1 - (l.discount or 0.0) / 100.0)"/>
-								<t t-set="amounts" t-value="l.invoice_line_tax_ids.compute_all(price, l.currency_id, l.quantity, 
+								<t t-set="amounts" t-value="l.invoice_line_tax_ids.compute_all(price, l.currency_id, l.quantity,
 														product=l.product_id, partner=l.invoice_id.partner_id)"/>
 								<t t-set="price_exclude_tax" t-value="amounts['total_excluded']"/>
 								<t t-set="price_include_tax" t-value="amounts['total_included']"/>
@@ -200,7 +198,7 @@
 								<td>
 									<span t-field="l.name" />
 								</td>
-								
+
 								<td class="text-right">
 									<span t-field="l.price_unit"
 									      t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
@@ -210,9 +208,9 @@
 										t-options='{"widget": "monetary", "display_currency": o.currency_id}' />
 								</td>
 								<td t-if="display_discount" class="text-right" >
-									<span t-esc="l.price_unit * ((l.discount or 0.0) / 100.0) *l.quantity" 
+									<span t-esc="l.price_unit * ((l.discount or 0.0) / 100.0) *l.quantity"
 									      t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
-								</td> 
+								</td>
 								<td colspan="4">
 								<table width="100%">
 								<tr t-foreach="l.invoice_line_tax_ids" t-as="tax">
@@ -225,10 +223,10 @@
 										<span t-field="tax.tipo_factor" />
 									</td>
 									<td class="text-right"  width="25%">
-										<span t-esc="abs(tax.amount / 100)" /> 
+										<span t-esc="abs(tax.amount / 100)" />
 									</td>
 									<td class="text-right"  width="25%">
-										<span t-esc="abs(m['amount'])" 
+										<span t-esc="abs(m['amount'])"
 										      t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
 									</td>
 									</t>
@@ -296,7 +294,7 @@
 										<strong>Total</strong>
 									</td>
 									<td class="text-right">
-										<span t-esc="amount_total"
+										<span t-esc="o.amount_total"
 											t-options='{"widget": "monetary", "display_currency": o.currency_id}' />
 									</td>
 								</tr>
@@ -304,7 +302,7 @@
 						</div>
 						<div class="col-xs-7">
 							<div style="color: black;">
-								<strong><span t-esc="o._get_amount_2_text(amount_total)" /></strong>
+								<strong><span t-esc="o._get_amount_2_text(o.amount_total)" /></strong>
 							</div>
 						</div>
 					</div>	
@@ -391,7 +389,7 @@
 							</tr>
 						</table>
 					</div>
-					<div class="row" style="page-break-inside: avoid">
+					<div name="cadenas" class="row" style="page-break-inside: avoid">
 						<div class="col-xs-1">
 						<img t-if="o.qrcode_image" t-att-src="'data:image/png;base64,%s' % to_text(o.qrcode_image)"
 								style="height: 190;width: 190;padding-left:10px;" />

@@ -31,4 +31,4 @@ class ResPartner(models.Model):
                    ('D10', _('Pagos por servicios educativos (colegiaturas)')),
                    ('P01', _('Por definir')),],
         string=_('Uso CFDI (cliente)'),
-    ) 
+    )

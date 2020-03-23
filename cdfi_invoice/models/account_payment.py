@@ -5,21 +5,38 @@ import json
 import requests
 from lxml import etree
 from flectra import api, fields, models, _
-from flectra.exceptions import UserError
+from flectra.exceptions import UserError, Warning
 from . import amount_to_text_es_MX
 from reportlab.graphics.barcode import createBarcodeDrawing
 from reportlab.lib.units import mm
 from datetime import datetime, timedelta
+import pytz
+from .tzlocal import get_localzone
+from flectra import tools
 
 class AccountPayment(models.Model):
     _inherit = 'account.payment'
 
-    forma_pago = fields.Selection(selection=[('01', _('Efectivo')),
-                                         ('02', _('Cheque')),
-                                         ('03', _('Transferencia')),
-                                         ('04', _('Tarjeta de crédito')),
-                                         ('28', _('Tarjeta de débito')),
-                                           ],
+    forma_pago = fields.Selection(selection=[('01', '01 - Efectivo'), 
+                   ('02', '02 - Cheque nominativo'), 
+                   ('03', '03 - Transferencia electrónica de fondos'),
+                   ('04', '04 - Tarjeta de Crédito'), 
+                   ('05', '05 - Monedero electrónico'),
+                   ('06', '06 - Dinero electrónico'), 
+                   ('08', '08 - Vales de despensa'), 
+                   ('12', '12 - Dación en pago'), 
+                   ('13', '13 - Pago por subrogación'), 
+                   ('14', '14 - Pago por consignación'), 
+                   ('15', '15 - Condonación'), 
+                   ('17', '17 - Compensación'), 
+                   ('23', '23 - Novación'), 
+                   ('24', '24 - Confusión'), 
+                   ('25', '25 - Remisión de deuda'), 
+                   ('26', '26 - Prescripción o caducidad'), 
+                   ('27', '27 - A satisfacción del acreedor'), 
+                   ('28', '28 - Tarjeta de débito'), 
+                   ('29', '29 - Tarjeta de servicios'), 
+                   ('30', '30 - Aplicación de anticipos'),],
                                 string=_('Forma de pago'), 
                             )
     tipo_comprobante = fields.Selection(
@@ -175,7 +192,9 @@ class AccountPayment(models.Model):
                     docto_relacionados.append({
                           'moneda': invoice.moneda,
                           'tipodecambio': tipocambiop,
+                          'methodo_pago': invoice.methodo_pago,
                           'iddocumento': invoice.folio_fiscal,
+                          'folio_facura': invoice.number_folio,
                           'no_de_pago': len(invoice.payment_ids.filtered(lambda x: x.state!='cancelled')), 
                           'saldo_pendiente': round(invoice.residual,2),
                           'monto_pagar': 0,
@@ -231,11 +250,27 @@ class AccountPayment(models.Model):
             self.tipocambiop = '1'
         else:
             self.tipocambiop = self.currency_id.rate
-        self.methodo_pago  = 'PPD'
-        correccion_hora = datetime.strptime(self.fecha_pago, "%Y-%m-%d %H:%M:%S") 
-        correccion_hora -= timedelta(hours=5)
+        if not self.fecha_pago:
+            raise Warning("Falta configurar fecha de pago en la sección de CFDI del documento.")
+        else:
+            local = get_localzone()
+            naive_from = datetime.strptime(self.fecha_pago, '%Y-%m-%d %H:%M:%S')
+            local_dt_from = naive_from.replace(tzinfo=pytz.UTC).astimezone(local)
+            date_from = local_dt_from.strftime ("%Y-%m-%d %H:%M:%S")
+        self.add_resitual_amounts()
 
-        if self.invoice_ids:		            
+        #corregir hora
+        timezone = self._context.get('tz')
+        if not timezone:
+            timezone = self.env.user.partner_id.tz or 'UTC'
+        #timezone = tools.ustr(timezone).encode('utf-8')
+
+        local2 = pytz.timezone(timezone)
+        naive_from2 = datetime.now() 
+        local_dt_from2 = naive_from2.replace(tzinfo=pytz.UTC).astimezone(local2)
+        date_payment = local_dt_from2.strftime ("%Y-%m-%d %H:%M:%S")
+
+        if self.invoice_ids:
             request_params = { 
                 'company': {
                       'rfc': self.company_id.rfc,
@@ -255,6 +290,7 @@ class AccountPayment(models.Model):
                       'tipo_comprobante': self.tipo_comprobante,
                       'folio_complemento': self.name.replace('CUST.IN','').replace('/',''),
                       'serie_complemento': self.company_id.serie_complemento,
+                      'fecha_factura': date_payment,
                 },
                 'concept': {
                       'claveprodserv': '84111506',
@@ -273,7 +309,7 @@ class AccountPayment(models.Model):
                       'banco_receptor': self.banco_receptor,
                       'cuenta_beneficiario': self.cuenta_beneficiario,
                       'rfc_banco_receptor': self.rfc_banco_receptor,
-                      'fecha_pago': correccion_hora.strftime('%Y-%m-%d %H:%M:%S'),
+                      'fecha_pago': date_from,
                       'monto_factura':  self.amount
                 },
 
@@ -281,74 +317,22 @@ class AccountPayment(models.Model):
                 'adicional': {
                       'tipo_relacion': self.tipo_relacion,
                       'uuid_relacionado': self.uuid_relacionado,
-                      'confirmacion': self.confirmacion,					  
-                },				
+                      'confirmacion': self.confirmacion,
+                },
                 'certificados': {
                       'archivo_cer': archivo_cer.decode("utf-8"),
                       'archivo_key': archivo_key.decode("utf-8"),
                       'contrasena': self.company_id.contrasena,
-                }
+                },
+                'version': {
+                      'cfdi': '3.3',
+                      'sistema': 'odoo11',
+                      'version': '6',
+                },
             }
         else:
-            request_params = { 
-                'company': {
-                      'rfc': self.company_id.rfc,
-                      'api_key': self.company_id.proveedor_timbrado,
-                      'modo_prueba': self.company_id.modo_prueba,
-                      'regimen_fiscal': self.company_id.regimen_fiscal,
-                      'postalcode': self.company_id.zip,
-                      'nombre_fiscal': self.company_id.nombre_fiscal,
-                },
-                'customer': {
-                      'name': self.partner_id.name,
-                      'rfc': self.partner_id.rfc,
-                      'uso_cfdi': 'P01',
-                },
-                'invoice': {
-                      'tipo_comprobante': self.tipo_comprobante,
-                      'folio_complemento': self.name.replace('CUST.IN','').replace('/',''),
-                      'serie_complemento': self.company_id.serie_complemento,
-                },
-                'concept': {
-                      'claveprodserv': '84111506',
-                      'calveunidad': 'ACT',
-                      'cantidad': 1,
-                      'descripcion': 'Pago',
-                },
-                'payment': {
-                      'moneda': self.monedap,
-                      'tipocambio': self.tipocambiop,
-                      'forma_pago': self.forma_pago,
-                      'numero_operacion': self.numero_operacion,
-                      'banco_emisor': self.banco_emisor,
-                      'cuenta_emisor': self.cuenta_emisor and self.cuenta_emisor.acc_number or '',
-                      'rfc_banco_emisor': self.rfc_banco_emisor,
-                      'banco_receptor': self.banco_receptor,
-                      'cuenta_beneficiario': self.cuenta_beneficiario,
-                      'rfc_banco_receptor': self.rfc_banco_receptor,
-                      'fecha_pago': correccion_hora.strftime('%Y-%m-%d %H:%M:%S'),
-                      'monto_factura': self.amount,
-                },
-                'docto_relacionado': [{
-                      'moneda': 'false',
-                      'tipodecambio': 'false',
-                      'iddocumento': 'false',
-                      'no_de_pago': 'false',
-                      'saldo_pendiente': 'false',
-                      'monto_pagar': 'false',
-                      'saldo_restante': 'false',
-                }],
-                'adicional': {
-                      'tipo_relacion': self.tipo_relacion,
-                      'uuid_relacionado': self.uuid_relacionado,
-                      'confirmacion': self.confirmacion,					  
-                },				
-                'certificados': {
-                      'archivo_cer': archivo_cer.decode("utf-8"),
-                      'archivo_key': archivo_key.decode("utf-8"),
-                      'contrasena': self.company_id.contrasena,
-                }		
-            }
+            raise Warning("No tiene ninguna factura ligada al documento de pago, debe al menos tener una factura ligada. \n Desde la factura crea el pago para que se asocie la factura al pago.")
+
         return request_params
     
     @api.multi
@@ -357,15 +341,26 @@ class AccountPayment(models.Model):
             values = p.to_json()
             if self.company_id.proveedor_timbrado == 'multifactura':
                 url = '%s' % ('http://facturacion.itadmin.com.mx/api/payment')
+            elif self.company_id.proveedor_timbrado == 'multifactura2':
+                url = '%s' % ('http://facturacion2.itadmin.com.mx/api/payment')
+            elif self.company_id.proveedor_timbrado == 'multifactura3':
+                url = '%s' % ('http://facturacion3.itadmin.com.mx/api/payment')
             elif self.company_id.proveedor_timbrado == 'gecoerp':
                 if self.company_id.modo_prueba:
                     #url = '%s' % ('https://ws.gecoerp.com/itadmin/pruebas/payment/?handler=FlectraHandler33')
                     url = '%s' % ('https://itadmin.gecoerp.com/payment2/?handler=FlectraHandler33')
                 else:
                     url = '%s' % ('https://itadmin.gecoerp.com/payment2/?handler=FlectraHandler33')
-            response = requests.post(url , 
+            try:
+                response = requests.post(url , 
                                      auth=None,verify=False, data=json.dumps(values), 
                                      headers={"Content-type": "application/json"})
+            except Exception as e:
+                error = str(e)
+                if "Name or service not known" in error or "Failed to establish a new connection" in error:
+                     raise Warning("Servidor fuera de servicio, favor de intentar mas tarde")
+                else:
+                     raise Warning(error)
 
             #print 'Response: ', response.status_code
             json_response = response.json()
@@ -466,11 +461,12 @@ class AccountPayment(models.Model):
         
         options = {'width': 275 * mm, 'height': 275 * mm}
         amount_str = str(self.amount).split('.')
-        qr_value = '?re=%s&rr=%s&tt=%s.%s&id=%s' % (self.company_id.rfc, 
+        qr_value = 'https://verificacfdi.facturaelectronica.sat.gob.mx/default.aspx?&id=%s&re=%s&rr=%s&tt=%s.%s&fe=%s' % (self.folio_fiscal,
+                                                 self.company_id.rfc, 
                                                  self.partner_id.rfc,
                                                  amount_str[0].zfill(10),
                                                  amount_str[1].ljust(6, '0'),
-                                                 self.folio_fiscal
+                                                 self.selo_digital_cdfi[-8:],
                                                  )
         self.qr_value = qr_value
         ret_val = createBarcodeDrawing('QR', value=qr_value, **options)
@@ -516,6 +512,9 @@ class AccountPayment(models.Model):
                     raise UserError(_('Falta la ruta del archivo .key'))
                 archivo_cer = p.company_id.archivo_cer.decode("utf-8")
                 archivo_key = p.company_id.archivo_key.decode("utf-8")
+                archivo_xml_link = p.company_id.factura_dir + '/' + p.name.replace('/', '_') + '.xml'
+                with open(archivo_xml_link, 'rb') as cf:
+                     archivo_xml = base64.b64encode(cf.read())
                 values = {
                           'rfc': p.company_id.rfc,
                           'api_key': p.company_id.proveedor_timbrado,
@@ -527,10 +526,15 @@ class AccountPayment(models.Model):
                                   'archivo_cer': archivo_cer,
                                   'archivo_key': archivo_key,
                                   'contrasena': p.company_id.contrasena,
-                            }
+                            },
+                          'xml': archivo_xml.decode("utf-8"),
                           }
                 if p.company_id.proveedor_timbrado == 'multifactura':
                     url = '%s' % ('http://facturacion.itadmin.com.mx/api/refund')
+                elif invoice.company_id.proveedor_timbrado == 'multifactura2':
+                    url = '%s' % ('http://facturacion2.itadmin.com.mx/api/refund')
+                elif invoice.company_id.proveedor_timbrado == 'multifactura3':
+                    url = '%s' % ('http://facturacion3.itadmin.com.mx/api/refund')
                 elif p.company_id.proveedor_timbrado == 'gecoerp':
                     if p.company_id.modo_prueba:
                          #url = '%s' % ('https://ws.gecoerp.com/itadmin/pruebas/refund/?handler=FlectraHandler33')
@@ -549,7 +553,7 @@ class AccountPayment(models.Model):
                     if p.name:
                         xml_file_link = p.company_id.factura_dir + '/CANCEL_' + p.name.replace('/', '_') + '.xml'
                     else:
-                        xml_file_link = p.company_id.factura_dir + '/CANCEL_' + p.folio + '.xml'						
+                        xml_file_link = p.company_id.factura_dir + '/CANCEL_' + p.folio + '.xml'
                     xml_file = open(xml_file_link, 'w')
                     xml_invoice = base64.b64decode(json_response['factura_xml'])
                     xml_file.write(xml_invoice.decode("utf-8"))
@@ -654,4 +658,4 @@ class AccountPaymentTerm(models.Model):
                    ('30', '30 - Aplicación de anticipos'), 
                    ('99', '99 - Por definir'),],
         string=_('Forma de pago'),
-    ) 
+    )
